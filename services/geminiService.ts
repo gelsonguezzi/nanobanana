@@ -1,27 +1,23 @@
 import { GoogleGenAI, GenerateContentResponse, Modality } from "@google/genai";
 import { ImageFile } from '../types';
+import { API_KEY } from '../config.js';
 
-// Esta variável irá armazenar a chave de API de forma segura.
-let apiKey: string | undefined;
+let ai: GoogleGenAI | null = null;
 
-// Verificamos se 'process' e 'process.env' existem. 
-// Isso torna o código seguro para rodar diretamente no navegador.
-if (typeof process !== 'undefined' && process.env) {
-    apiKey = process.env.API_KEY;
-}
-
-const getAiInstance = (): GoogleGenAI => {
-    if (!apiKey) {
-        // A mensagem de erro agora é mais clara e direciona para a solução correta.
-        throw new Error("A chave de API não foi encontrada. Por favor, conecte seu site a um repositório Git no Netlify e adicione a API_KEY nas 'Environment variables' para que a aplicação funcione.");
+const getAi = () => {
+    if (!API_KEY || API_KEY === 'COLE_SUA_CHAVE_DE_API_AQUI') {
+        throw new Error("A chave de API não foi configurada. Por favor, edite o arquivo 'config.js' e adicione sua chave de API do Google AI Studio.");
     }
-    return new GoogleGenAI({ apiKey: apiKey });
+    if (!ai) {
+        ai = new GoogleGenAI({ apiKey: API_KEY });
+    }
+    return ai;
 }
 
 export const generateImage = async (prompt: string): Promise<string> => {
   try {
-    const ai = getAiInstance();
-    const response = await ai.models.generateImages({
+    const gemini = getAi();
+    const response = await gemini.models.generateImages({
       model: 'imagen-4.0-generate-001',
       prompt: prompt,
       config: {
@@ -45,7 +41,7 @@ export const generateImage = async (prompt: string): Promise<string> => {
 
 export const editImage = async (prompt: string, image: ImageFile, image2?: ImageFile): Promise<string> => {
     try {
-        const ai = getAiInstance();
+        const gemini = getAi();
         const parts = [
             {
                 inlineData: {
@@ -67,7 +63,7 @@ export const editImage = async (prompt: string, image: ImageFile, image2?: Image
             });
         }
 
-        const response: GenerateContentResponse = await ai.models.generateContent({
+        const response: GenerateContentResponse = await gemini.models.generateContent({
             model: 'gemini-2.5-flash-image-preview',
             contents: { parts },
             config: {
