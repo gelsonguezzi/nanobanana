@@ -1,0 +1,202 @@
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { Mode, CreateFunction, EditFunction, ImageFile, GeneratedImage } from './types';
+import * as geminiService from './services/geminiService';
+import LeftPanel from './components/LeftPanel';
+import RightPanel from './components/RightPanel';
+import MobileModal from './components/MobileModal';
+
+const App: React.FC = () => {
+  const [prompt, setPrompt] = useState<string>('');
+  const [mode, setMode] = useState<Mode>('create');
+  const [createFunction, setCreateFunction] = useState<CreateFunction>('free');
+  const [editFunction, setEditFunction] = useState<EditFunction>('add-remove');
+  
+  const [image1, setImage1] = useState<ImageFile | null>(null);
+  const [image2, setImage2] = useState<ImageFile | null>(null);
+  
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [generatedImage, setGeneratedImage] = useState<GeneratedImage | null>(null);
+
+  const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
+
+  const showTwoImagesView = mode === 'edit' && editFunction === 'compose';
+  
+  useEffect(() => {
+    if (mode === 'create') {
+        setImage1(null);
+        setImage2(null);
+    }
+  }, [mode]);
+
+  const fileToBase64 = (file: File): Promise<{ base64: string, mimeType: string }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        resolve({ base64, mimeType: file.type });
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, imageSlot: 1 | 2) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const { base64, mimeType } = await fileToBase64(file);
+        const newImageFile = { base64, mimeType, name: file.name };
+        if (imageSlot === 1) {
+          setImage1(newImageFile);
+        } else {
+          setImage2(newImageFile);
+        }
+      } catch (err) {
+        setError('Failed to read image file.');
+        console.error(err);
+      }
+    }
+  };
+
+  const backToEditFunctions = () => {
+    setEditFunction('add-remove'); // Reset to a non-two-image function
+  };
+
+  const getFullPrompt = useCallback((): string => {
+    if (mode === 'edit') return prompt;
+
+    switch(createFunction) {
+        case 'sticker': return `design a high-quality sticker of ${prompt}, with a clean die-cut edge, on a white background`;
+        case 'text': return `a clean, professional logo for a brand named "${prompt}", text-based, vector style, on a white background`;
+        case 'comic': return `a single panel comic book style illustration of ${prompt}, vibrant colors, bold lines`;
+        case 'free':
+        default: return prompt;
+    }
+  }, [prompt, mode, createFunction]);
+
+  const isGenerateDisabled = useMemo(() => {
+    if (!prompt) return true;
+    if (mode === 'edit') {
+      if (!image1) return true;
+      if (editFunction === 'compose' && !image2) return true;
+    }
+    return false;
+  }, [prompt, mode, editFunction, image1, image2]);
+
+  const generateImageHandler = useCallback(async () => {
+    if (isGenerateDisabled) return;
+
+    setIsLoading(true);
+    setError(null);
+    setGeneratedImage(null);
+
+    const fullPrompt = getFullPrompt();
+
+    try {
+      let resultSrc: string;
+      if (mode === 'create') {
+        resultSrc = await geminiService.generateImage(fullPrompt);
+      } else {
+        if (!image1) throw new Error("Image 1 is required for editing.");
+        resultSrc = await geminiService.editImage(fullPrompt, image1, image2 ?? undefined);
+      }
+      const newImage = { src: resultSrc, prompt: fullPrompt };
+      setGeneratedImage(newImage);
+      if (window.innerWidth < 1024) {
+        setIsMobileModalOpen(true);
+      }
+    } catch (err: any) {
+      setError(err.message || "An unknown error occurred.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isGenerateDisabled, getFullPrompt, mode, image1, image2]);
+  
+  const downloadImage = useCallback(() => {
+    if (!generatedImage) return;
+    const link = document.createElement('a');
+    link.href = generatedImage.src;
+    link.download = `ai-studio-${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [generatedImage]);
+
+  const editCurrentImage = useCallback(async () => {
+      if(!generatedImage) return;
+
+      try {
+        const response = await fetch(generatedImage.src);
+        const blob = await response.blob();
+        const file = new File([blob], "generated_image.png", { type: blob.type });
+        const { base64, mimeType } = await fileToBase64(file);
+        
+        setImage1({ base64, mimeType, name: file.name });
+        setMode('edit');
+        setEditFunction('add-remove');
+        setGeneratedImage(null);
+        if (isMobileModalOpen) setIsMobileModalOpen(false);
+      } catch (error) {
+          setError("Could not load image for editing.");
+          console.error(error);
+      }
+  }, [generatedImage, isMobileModalOpen]);
+
+  const newImageFromModal = () => {
+    setIsMobileModalOpen(false);
+    setGeneratedImage(null);
+    setPrompt('');
+    setImage1(null);
+    setImage2(null);
+  };
+  
+  return (
+    <div className="container flex flex-col lg:flex-row h-screen font-sans text-brand-text-primary bg-brand-secondary">
+      {error && (
+        <div className="absolute top-5 left-1/2 -translate-x-1/2 bg-red-500 text-white p-3 rounded-lg shadow-lg z-50">
+          Error: {error}
+        </div>
+      )}
+
+      <LeftPanel
+        prompt={prompt}
+        setPrompt={setPrompt}
+        mode={mode}
+        setMode={setMode}
+        createFunction={createFunction}
+        setCreateFunction={setCreateFunction}
+        editFunction={editFunction}
+        setEditFunction={setEditFunction}
+        showTwoImagesView={showTwoImagesView}
+        image1={image1}
+        image2={image2}
+        handleImageUpload={handleImageUpload}
+        backToEditFunctions={backToEditFunctions}
+        isLoading={isLoading}
+        generateImage={generateImageHandler}
+        isGenerateDisabled={isGenerateDisabled}
+      />
+
+      <div className="hidden lg:flex flex-1">
+        <RightPanel
+          isLoading={isLoading}
+          generatedImage={generatedImage}
+          editCurrentImage={editCurrentImage}
+          downloadImage={downloadImage}
+        />
+      </div>
+
+      <MobileModal
+        isOpen={isMobileModalOpen}
+        image={generatedImage}
+        onEdit={editCurrentImage}
+        onDownload={downloadImage}
+        onNewImage={newImageFromModal}
+      />
+    </div>
+  );
+};
+
+export default App;

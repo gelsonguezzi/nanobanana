@@ -1,0 +1,25 @@
+
+import React from 'react';
+
+interface FunctionCardProps {
+  icon: string;
+  name: string;
+  isActive: boolean;
+  onClick: () => void;
+}
+
+const FunctionCard: React.FC<FunctionCardProps> = ({ icon, name, isActive, onClick }) => {
+  const activeClasses = isActive ? 'border-brand-accent bg-brand-accent/10' : 'border-brand-border hover:border-brand-accent/50';
+
+  return (
+    <div
+      className={`function-card p-3 rounded-lg text-center cursor-pointer border-2 transition-all duration-200 ${activeClasses}`}
+      onClick={onClick}
+    >
+      <div className="text-2xl mb-1">{icon}</div>
+      <div className="text-sm font-medium text-brand-text-primary">{name}</div>
+    </div>
+  );
+};
+
+export default FunctionCard;

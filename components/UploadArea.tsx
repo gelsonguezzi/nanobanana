@@ -1,0 +1,39 @@
+
+import React from 'react';
+
+interface UploadAreaProps {
+  id: string;
+  onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  previewSrc: string | null;
+  mainText: string;
+  subText: string;
+  className?: string;
+}
+
+const UploadArea: React.FC<UploadAreaProps> = ({ id, onImageUpload, previewSrc, mainText, subText, className = '' }) => {
+  return (
+    <div
+      className={`upload-area relative border-2 border-dashed border-brand-border rounded-lg flex flex-col items-center justify-center text-center cursor-pointer hover:border-brand-accent transition-colors duration-200 ${className}`}
+      onClick={() => document.getElementById(id)?.click()}
+    >
+      <input
+        type="file"
+        id={id}
+        accept="image/*"
+        className="hidden"
+        onChange={onImageUpload}
+      />
+      {previewSrc ? (
+        <img src={previewSrc} alt="Preview" className="image-preview absolute inset-0 w-full h-full object-cover rounded-lg" />
+      ) : (
+        <div className="p-6">
+          <div className="text-4xl mb-2">📁</div>
+          <p className="font-semibold text-brand-text-primary">{mainText}</p>
+          <p className="upload-text text-xs text-brand-text-secondary">{subText}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default UploadArea;

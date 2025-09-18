@@ -1,0 +1,5 @@
+{
+  "name": "AI Image Studio",
+  "description": "A professional AI-powered application to generate and edit images from text prompts and existing images, built with React and the Gemini API.",
+  "requestFramePermissions": []
+}
